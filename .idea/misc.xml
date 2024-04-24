@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+<<<<<<< HEAD
   <component name="Black">
     <option name="sdkName" value="UnderwaterSounds" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="UnderwaterSounds" project-jdk-type="Python SDK" />
+=======
+  <component name="ProjectRootManager" version="2" project-jdk-name="Biometria" project-jdk-type="Python SDK" />
+>>>>>>> 159260d (Add code for modify DataSet)
 </project>
