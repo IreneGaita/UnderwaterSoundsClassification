@@ -13,7 +13,7 @@ def get_audio_length(file_path):
             # Converti il file MP3 in formato WAV
             audio = AudioSegment.from_mp3(file_path)
         else:
-            raise ValueError(f"Formato audio non supportato: {file_extension}")
+            raise ValueError("Formato audio non supportato: {file_extension}")
 
         duration = len(audio) / 1000  # Durata in secondi
         return duration
