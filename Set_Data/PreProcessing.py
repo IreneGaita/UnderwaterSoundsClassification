@@ -25,17 +25,23 @@ def adjust_audio_length(audio_path, target_length):
 
     return audio
 
-# Percorso della cartella principale
-main_folder_path = r'C:\Users\biagi\PycharmProjects\pythonProject\Target'
+# Ottieni il percorso assoluto del file corrente
+current_file = os.path.abspath(__file__)
 
-# Percorso della cartella genitore
-parent_folder_path = r'C:\Users\biagi\PycharmProjects\pythonProject'
+# Ottieni il percorso della cartella genitore del file corrente
+parent_folder = os.path.dirname(current_file)
+
+# Definisci il nome del file target
+file_name = "Target"
+
+# Unisci il percorso della cartella genitore con il nome del file target
+main_folder_path = os.path.join(parent_folder, file_name)
 
 # Nome della nuova cartella
 new_folder_name = 'TargetModificato'
 
 # Percorso completo della nuova cartella
-new_folder_path = os.path.join(parent_folder_path, new_folder_name)
+new_folder_path = os.path.join(parent_folder, new_folder_name)
 
 # Creare la nuova cartella
 os.mkdir(new_folder_path)
