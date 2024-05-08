@@ -24,18 +24,22 @@ def get_audio_frequency(file_path):
 def main():
     file_count = 0
 
-    # Ottieni il percorso assoluto del file corrente
+    # Ottieni il percorso assoluto del file corrente (dove viene eseguito il codice)
     current_file = os.path.abspath(__file__)
 
     # Ottieni il percorso della cartella genitore del file corrente
     parent_folder = os.path.dirname(current_file)
 
+    parent_folder = os.path.dirname(parent_folder)
+
+    # Definisci il percorso della cartella "Dataset"
+    dataset_folder_path = os.path.join(parent_folder, "Dataset")
+
     # Definisci il nome del file target
     file_name = "Target"
 
     # Unisci il percorso della cartella genitore con il nome del file target
-    path_main = os.path.join(parent_folder, file_name)
-
+    path_main = os.path.join(dataset_folder_path, file_name)
     for root, _, files in os.walk(path_main):
         for file_name in files:
             file_path = os.path.join(root, file_name)
