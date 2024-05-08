@@ -1,6 +1,5 @@
-from pydub import AudioSegment
 import os
-
+from pydub import AudioSegment
 
 def get_audio_length(file_path):
     try:
@@ -21,20 +20,34 @@ def get_audio_length(file_path):
         print(f"Errore durante la decodifica del file {file_path}: {e}")
         return 0
 
-
 def media(folder_path):
-    file_names = os.listdir(folder_path)
-
     total_length = 0
     file_count = 0
-    for file_name in file_names:
-        path_audio = os.path.join(folder_path, file_name)
-        Lista_audio = os.listdir(path_audio)
-        for audio_file in Lista_audio:
-                file_path = os.path.join(path_audio, audio_file)
-                print(file_path)
-                total_length += get_audio_length(file_path)
-                file_count += 1
+
+    # Itera su tutte le sottodirectory e i file all'interno del percorso specificato
+    for root, dirs, files in os.walk(folder_path):
+        for dir_name in dirs[:]:  # Copia della lista per evitare modifiche durante l'iterazione
+            if not os.listdir(os.path.join(root, dir_name)):
+                # Se una directory è vuota, la rimuovi dalla lista delle directory
+                dirs.remove(dir_name)
+
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+
+            # Controlla se il file è un formato audio supportato
+            _, file_extension = os.path.splitext(file_name)
+            if file_extension.lower() not in ['.wav', '.mp3']:
+                print(f"File non supportato: {file_path}")
+                continue
+
+            # Calcola la durata solo se il file è un formato audio supportato
+            duration = get_audio_length(file_path)
+            total_length += duration
+            file_count += 1
+
+            # Stampa il percorso dell'audio, il nome del file, la durata e il numero di file audio letti
+            print(f"Percorso: {file_path}, Nome file: {file_name}, Durata: {duration} secondi")
+
     average_length = total_length / file_count if file_count > 0 else 0
     print("Lunghezza media dei file .wav nelle cartelle:", average_length, "secondi")
     print('File totali:', file_count)
