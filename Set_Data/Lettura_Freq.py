@@ -1,5 +1,7 @@
 import os
 from pydub import AudioSegment
+import os
+from pydub import AudioSegment
 
 def get_audio_frequency(file_path):
     try:
@@ -21,8 +23,10 @@ def get_audio_frequency(file_path):
         return 0
 
 
-def main():
+def frequenze():
     file_count = 0
+    frequency_counter = {}  # Dizionario per tenere traccia delle frequenze dei file audio
+
     exclude_files = ['.DS_Store', 'metadata-Target.csv']  # Lista di file da escludere
 
     # Ottieni il percorso assoluto del file corrente (dove viene eseguito il codice)
@@ -45,11 +49,17 @@ def main():
                 file_path = os.path.join(root, file_name)
                 frequency = get_audio_frequency(file_path)
                 if frequency != 0:
-                    print("Frequenza:", frequency)
+                    # Incrementa il contatore per la frequenza corrente nel dizionario
+                    frequency_counter[frequency] = frequency_counter.get(frequency, 0) + 1
                     file_count += 1
+                    print(f"File letto: {file_count}")
 
     print("Frequenze audio lette con successo.")
     print("Totale file audio:", file_count)
+    return frequency_counter
 
 if __name__ == "__main__":
-    main()
+    frequencies = frequenze()
+    print("Lista delle frequenze con il conteggio dei file per ogni frequenza:")
+    for frequency, count in frequencies.items():
+        print(f"Frequenza: {frequency}, Numero di file: {count}")
