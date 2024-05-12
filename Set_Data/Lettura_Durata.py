@@ -56,23 +56,6 @@ def audio_info():
     dataset_folder_path = os.path.join(parent_folder, "Dataset")
 
     # Percorso della cartella target all'interno di "Dataset"
-    path_main = os.path.join(dataset_folder_path, "Target")
-
-    # Scorri tutti i file nella cartella target
-    for root, _, files in os.walk(path_main):
-        for file_name in files:
-            if file_name not in exclude_files:  # Verifica se il file deve essere escluso
-                file_path = os.path.join(root, file_name)
-                duration = get_audio_info(file_path)
-                if duration is not None:
-                    # Salva le informazioni audio nel dizionario
-                    audio_info_dict[file_name] = duration
-                    file_count += 1
-                    print(f"File letto: {file_count} - Nome: {file_name}, Durata: {duration[0]} min {duration[1]} sec")
-                else:
-                    print(f"Errore durante l'ottenimento delle informazioni audio per il file {file_path}")
-
-    # Percorso della cartella target all'interno di "Dataset"
     path_main = os.path.join(dataset_folder_path, "Non-Target")
 
     # Scorri tutti i file nella cartella target
@@ -82,8 +65,11 @@ def audio_info():
                 file_path = os.path.join(root, file_name)
                 duration = get_audio_info(file_path)
                 if duration is not None:
+                    if file_name in audio_info_dict:
+                        print("Duplicato trovato!")
                     # Salva le informazioni audio nel dizionario
                     audio_info_dict[file_name] = duration
+
                     file_count += 1
                     print(f"File letto: {file_count} - Nome: {file_name}, Durata: {duration[0]} min {duration[1]} sec")
                 else:
