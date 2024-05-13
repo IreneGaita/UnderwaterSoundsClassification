@@ -1,6 +1,5 @@
-from pydub.utils import mediainfo
-import os
 from pydub import AudioSegment
+import os
 
 def get_audio_info(file_path):
     try:
@@ -52,28 +51,27 @@ def audio_info():
     parent_folder = os.path.dirname(current_file)
     parent_folder = os.path.dirname(parent_folder)  # Sali di un livello nella struttura delle directory
 
-    # Definisci il percorso della cartella "Dataset"
-    dataset_folder_path = os.path.join(parent_folder, "Dataset")
+    # Percorsi delle cartelle "Target" e "Non-Target" all'interno di "Dataset"
+    folders = ["Target", "Non-Target"]
 
-    # Percorso della cartella target all'interno di "Dataset"
-    path_main = os.path.join(dataset_folder_path, "Non-Target")
+    for folder in folders:
+        path_main = os.path.join(parent_folder, "Dataset", folder)
 
-    # Scorri tutti i file nella cartella target
-    for root, _, files in os.walk(path_main):
-        for file_name in files:
-            if file_name not in exclude_files:  # Verifica se il file deve essere escluso
-                file_path = os.path.join(root, file_name)
-                duration = get_audio_info(file_path)
-                if duration is not None:
-                    if file_name in audio_info_dict:
-                        print("Duplicato trovato!")
-                    # Salva le informazioni audio nel dizionario
-                    audio_info_dict[file_name] = duration
-
-                    file_count += 1
-                    print(f"File letto: {file_count} - Nome: {file_name}, Durata: {duration[0]} min {duration[1]} sec")
-                else:
-                    print(f"Errore durante l'ottenimento delle informazioni audio per il file {file_path}")
+        # Scorri tutti i file nella cartella target
+        for root, _, files in os.walk(path_main):
+            for file_name in files:
+                if file_name not in exclude_files:  # Verifica se il file deve essere escluso
+                    file_path = os.path.join(root, file_name)
+                    duration = get_audio_info(file_path)
+                    if duration is not None:
+                        if file_name in audio_info_dict:
+                            print("Duplicato trovato!")
+                        # Salva le informazioni audio nel dizionario
+                        audio_info_dict[file_name] = duration
+                        file_count += 1
+                        print(f"File letto: {file_count} - Nome: {file_name}, Durata: {duration[0]} min {duration[1]} sec")
+                    else:
+                        print(f"Errore durante l'ottenimento delle informazioni audio per il file {file_path}")
 
     print("Informazioni audio lette con successo.")
     print("Totale file audio:", file_count)
@@ -85,3 +83,4 @@ if __name__ == "__main__":
     print("Dizionario delle informazioni audio:")
     for file_name, duration in audio_info_dict.items():
         print(f"File: {file_name}, Durata: {duration}")
+
