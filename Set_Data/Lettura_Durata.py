@@ -41,7 +41,7 @@ def audio_info():
     dataset_folder_path = os.path.join(parent_folder, "Dataset")
 
     # Definisci le sottocartelle da visitare
-    subfolders = ["Non-Target", "Target"]
+    subfolders = ["Target", "Non-Target"]
     total_files = sum(count_files(os.path.join(dataset_folder_path, subfolder), exclude_files) for subfolder in subfolders)
 
     # Percorri tutte le sottocartelle
