@@ -1,5 +1,12 @@
 import os
+import sys
+
 from pydub import AudioSegment
+
+
+def count_files(directory, exclude_files):
+    # Conta i file totali escludendo quelli nella lista exclude_files.
+    return sum(1 for root, _, files in os.walk(directory) for file in files if file not in exclude_files)
 
 def get_audio_info(file_path):
     try:
@@ -21,7 +28,7 @@ def get_audio_info(file_path):
 def audio_info():
     file_count = 0
     audio_info_dict = {}  # Dizionario per tenere traccia delle informazioni audio per ogni file
-    exclude_files = ['.DS_Store', 'metadata-Target.csv']  # Lista di file da escludere
+    exclude_files = ['.DS_Store', 'metadata-Target.csv','metadata-NonTarget.csv']  # Lista di file da escludere
 
     # Ottieni il percorso assoluto del file corrente (dove viene eseguito il codice)
     current_file = os.path.abspath(__file__)
@@ -35,6 +42,7 @@ def audio_info():
 
     # Definisci le sottocartelle da visitare
     subfolders = ["Non-Target", "Target"]
+    total_files = sum(count_files(os.path.join(dataset_folder_path, subfolder), exclude_files) for subfolder in subfolders)
 
     # Percorri tutte le sottocartelle
     for subfolder in subfolders:
@@ -50,9 +58,12 @@ def audio_info():
                     if duration is not None:
                         audio_info_dict[file_name] = duration
                         file_count += 1
-                        print(f"File letto: {file_count} - Nome: {file_name}, Durata: {duration[0]} min {duration[1]} sec")
+                        sys.stdout.write(f"\rProgresso: {(file_count / total_files) * 100:.2f}%")
+                        sys.stdout.flush()
+
                     else:
                         print(f"Errore durante l'ottenimento delle informazioni audio per il file {file_path}")
+    sys.stdout.write('\n')  # Vai a capo una volta completato il processo
 
     print("Informazioni audio lette con successo.")
     print("Totale file audio:", file_count)
