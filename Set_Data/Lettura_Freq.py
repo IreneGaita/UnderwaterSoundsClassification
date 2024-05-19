@@ -98,7 +98,7 @@ def conteggio_massime_frequenze_riproduzione():
         path_main = os.path.join(dataset_folder, subfolder)
         for root, _, files in os.walk(path_main):
             for file_name in files:
-                if file_name in exclude_files or not file_name.endswith(".wav"):
+                if file_name in exclude_files or not (file_name.endswith(".wav") or file_name.endswith(".mp3")):
                     continue
                 file_path = os.path.join(root, file_name)
                 try:
@@ -116,6 +116,7 @@ def conteggio_massime_frequenze_riproduzione():
                     print(f"Errore durante la decodifica del file {file_path}: {e}")
 
     sys.stdout.write('\n')  # Vai a capo una volta completato il processo
+    print(f"Totale file letti: {file_count}")
 
     return max_frequency_counter
 
