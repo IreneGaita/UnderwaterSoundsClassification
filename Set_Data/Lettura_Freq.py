@@ -26,10 +26,6 @@ def find_max_frequency(file_path, high_pass_filter=False, cutoff_freq=100.0, amp
     if np.all(y == 0):
         return 0.0, sr
 
-    # Applica un filtro passa-alto se richiesto
-    if high_pass_filter:
-        y = librosa.effects.preemphasis(y, coef=cutoff_freq / sr)
-
     # Calcola lo spettrogramma con n_fft dinamico
     n_fft = min(len(y), 4096)
     S = np.abs(librosa.stft(y, n_fft=n_fft))
