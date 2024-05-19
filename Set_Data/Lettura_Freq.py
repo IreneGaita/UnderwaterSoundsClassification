@@ -79,6 +79,7 @@ def conteggio_frequenze_campionamento():
 
     return sampling_frequency_counter
 
+
 def conteggio_massime_frequenze_riproduzione():
     exclude_files = {'.DS_Store', 'metadata-Target.csv', 'metadata-NonTarget.csv'}
     current_file = os.path.abspath(__file__)
@@ -86,6 +87,7 @@ def conteggio_massime_frequenze_riproduzione():
     subfolders = ["Target", "Non-Target"]
 
     max_frequency_counter = defaultdict(int)
+    max_frequencies = []
 
     total_files = sum(count_files(os.path.join(dataset_folder, subfolder), exclude_files) for subfolder in subfolders)
     file_count = 0
@@ -98,12 +100,13 @@ def conteggio_massime_frequenze_riproduzione():
                     continue
                 file_path = os.path.join(root, file_name)
                 try:
-                    max_frequency, sr = find_max_frequency(file_path, high_pass_filter=True, cutoff_freq=100.0, amplitude_threshold=0.001)
+                    max_frequency, sr = find_max_frequency(file_path, high_pass_filter=True, cutoff_freq=100.0,
+                                                           amplitude_threshold=0.001)
 
                     if max_frequency > 0:
                         max_frequency_counter[max_frequency] += 1
+                        max_frequencies.append(max_frequency)
 
-                    print(f"File: {file_name}, Posizione: {subfolder}, Frequenza di campionamento: {sr}, Massima frequenza di riproduzione: {max_frequency}")
 
                     file_count += 1
                     sys.stdout.write(f"\rProgresso: {(file_count / total_files) * 100:.2f}%")
