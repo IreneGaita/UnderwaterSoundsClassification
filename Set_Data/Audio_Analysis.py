@@ -1,17 +1,23 @@
 import os
-from pydub import AudioSegment
+import librosa
 import sys
+
 
 def analyze_audio_channels(file_path):
     try:
-        audio = AudioSegment.from_file(file_path)
-        return audio.channels
+        y, sr = librosa.load(file_path, sr=None, mono=False)
+        if len(y.shape) == 1:
+            return 1  # Mono
+        else:
+            return y.shape[0]  # Number of channels
     except Exception as e:
         print(f"Error analyzing file {file_path}: {e}")
         return None
 
+
 def count_files(directory, exclude_files):
     return sum(1 for root, _, files in os.walk(directory) for file in files if file not in exclude_files)
+
 
 def analyze_audio_files():
     exclude_files = {'.DS_Store', 'metadata-Target.csv', 'metadata-NonTarget.csv'}
@@ -48,19 +54,20 @@ def analyze_audio_files():
                     file_info.append((file_name, channels, channel_type, folder_name))
                     file_count += 1
 
-                    sys.stdout.write(f"\rProgresso: {(file_count / total_files) * 100:.2f}%")
+                    sys.stdout.write(f"\rProgress: {(file_count / total_files) * 100:.2f}%")
                     sys.stdout.flush()
                 else:
-                    print(f"File: {file_name}, Canali non specificati")
+                    print(f"File: {file_name}, Channels not specified")
 
     sys.stdout.write('\n')
 
-    print(f"Totale audio monocanale: {mono_count}")
-    print(f"Totale audio multicanale: {multi_count}")
+    print(f"Total mono channel audio: {mono_count}")
+    print(f"Total multi-channel audio: {multi_count}")
     for channels, count in multi_channel_distribution.items():
-        print(f"Audio con {channels} canali: {count}")
+        print(f"Audio with {channels} channels: {count}")
 
     return file_info
+
 
 if __name__ == "__main__":
     audio_file_info = analyze_audio_files()
