@@ -1,3 +1,4 @@
+import os
 import sys
 import librosa
 import numpy as np
@@ -5,10 +6,14 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing
 import logging
-from Caricamento_Audio import load_audio_files
 
 # Configura il logging per monitorare lo stato
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def count_files(directory, exclude_files):
+    return sum(1 for root, _, files in os.walk(directory) for file in files if file not in exclude_files)
+
 
 def get_audio_frequency(file_path):
     try:
@@ -60,12 +65,15 @@ def process_file(file_path):
 
 
 def analyze_audio_files():
-    audio_files = load_audio_files()
-    total_files = len(audio_files)
+    exclude_files = {'.DS_Store', 'metadata-Target.csv', 'metadata-NonTarget.csv'}
+    current_file = os.path.abspath(__file__)
+    dataset_folder = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Dataset")
+    subfolders = ["Target", "Non-Target"]
 
     sampling_frequency_counter = defaultdict(int)
     max_frequency_counter = defaultdict(int)
 
+    total_files = sum(count_files(os.path.join(dataset_folder, subfolder), exclude_files) for subfolder in subfolders)
     file_count = 0
 
     # Determina il numero di core disponibili e imposta il numero di thread
@@ -74,8 +82,31 @@ def analyze_audio_files():
     logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = [executor.submit(process_file, file_path) for file_path in audio_files]
+        futures = []
+        for subfolder in subfolders:
+            path_main = os.path.join(dataset_folder, subfolder)
+            for root, _, files in os.walk(path_main):
+                for file_name in files:
+                    if file_name in exclude_files or not (file_name.endswith(".wav") or file_name.endswith(".mp3")):
+                        continue
+                    file_path = os.path.join(root, file_name)
+                    futures.append(executor.submit(process_file, file_path))
 
+                    # Limita la coda delle attività per evitare sovraccarico
+                    if len(futures) >= num_threads * 2:  # Limita a due volte il numero di thread
+                        for future in as_completed(futures):
+                            result = future.result()
+                            if 'sampling_frequency' in result:
+                                sampling_frequency_counter[result['sampling_frequency']] += 1
+                            if 'max_frequency' in result:
+                                max_frequency_counter[result['max_frequency']] += 1
+
+                            file_count += 1
+                            sys.stdout.write(f"\rProgresso: {(file_count / total_files) * 100:.2f}%")
+                            sys.stdout.flush()
+                        futures = []
+
+        # Completa le rimanenti attività
         for future in as_completed(futures):
             result = future.result()
             if 'sampling_frequency' in result:
