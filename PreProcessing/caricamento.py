@@ -86,4 +86,4 @@ if __name__ == "__main__":
 
     process_audio_files(subfolder_paths)
 
-    sys.stdout.write("\nElaborazione completata.\n")
+    sys.stdout.write("\nElaborazione completata!.\n")
