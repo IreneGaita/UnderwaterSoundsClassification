@@ -1,4 +1,3 @@
-import os
 import sys
 import librosa
 import numpy as np
@@ -10,11 +9,6 @@ from Caricamento_Audio import load_audio_files
 
 # Configura il logging per monitorare lo stato
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-def count_files(directory, exclude_files):
-    return sum(1 for root, _, files in os.walk(directory) for file in files if file not in exclude_files)
-
 
 def get_audio_frequency(file_path):
     try:
@@ -64,11 +58,14 @@ def process_file(file_path):
         logging.error(f"Errore nel processare il file {file_path}: {e}")
     return result
 
+
 def analyze_audio_files():
+    audio_files = load_audio_files()
+    total_files = len(audio_files)
+
     sampling_frequency_counter = defaultdict(int)
     max_frequency_counter = defaultdict(int)
-    audio_files=load_audio_files()
-    total_files = len(audio_files)
+
     file_count = 0
 
     # Determina il numero di core disponibili e imposta il numero di thread
@@ -77,25 +74,8 @@ def analyze_audio_files():
     logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        futures = []
-        for file_path in audio_files:
-            futures.append(executor.submit(process_file, file_path))
+        futures = [executor.submit(process_file, file_path) for file_path in audio_files]
 
-            # Limita la coda delle attività per evitare sovraccarico
-            if len(futures) >= num_threads * 2:  # Limita a due volte il numero di thread
-                for future in as_completed(futures):
-                    result = future.result()
-                    if 'sampling_frequency' in result:
-                        sampling_frequency_counter[result['sampling_frequency']] += 1
-                    if 'max_frequency' in result:
-                        max_frequency_counter[result['max_frequency']] += 1
-
-                    file_count += 1
-                    sys.stdout.write(f"\rProgresso: {(file_count / total_files) * 100:.2f}%")
-                    sys.stdout.flush()
-                futures = []
-
-        # Completa le rimanenti attività
         for future in as_completed(futures):
             result = future.result()
             if 'sampling_frequency' in result:
