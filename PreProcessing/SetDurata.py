@@ -3,6 +3,12 @@ import librosa
 import soundfile as sf
 import numpy as np
 import sys
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
+
+# Configura il logging per monitorare lo stato
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def adjust_audio_length(y, sr, target_length):
@@ -31,51 +37,67 @@ def segment_audio(y, sr, segment_length):
     return segments
 
 
+def process_audio_file(file_path, output_dir, segment_length):
+    output_subdir = os.path.join(output_dir, os.path.relpath(os.path.dirname(file_path), input_dir))
+    os.makedirs(output_subdir, exist_ok=True)
+    base_name, ext = os.path.splitext(os.path.basename(file_path))
+
+    try:
+        y, sr = librosa.load(file_path, sr=None)
+        segments = segment_audio(y, sr, segment_length)
+        for idx, segment in enumerate(segments):
+            output_file_path = os.path.join(output_subdir, f"{base_name}_part{idx}{ext}")
+            sf.write(output_file_path, segment, sr)
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+
+
 def process_audio_files(input_dir, output_dir, segment_length):
     total_files = sum([len(files) for _, _, files in os.walk(input_dir)])
     processed_files = 0
-    last_printed_progress = -1
 
-    for root, _, files in os.walk(input_dir):
-        for file_name in files:
-            if not file_name.endswith('.wav'):
-                continue
-            file_path = os.path.join(root, file_name)
-            output_subdir = os.path.join(output_dir, os.path.relpath(root, input_dir))
-            os.makedirs(output_subdir, exist_ok=True)
+    def progress_callback(future):
+        nonlocal processed_files
+        processed_files += 1
+        progress = (processed_files / total_files) * 100
+        sys.stdout.write(f"\rProgresso: {progress:.2f}%")
+        sys.stdout.flush()
 
-            try:
-                y, sr = librosa.load(file_path, sr=None)
-                segments = segment_audio(y, sr, segment_length)
-                base_name, ext = os.path.splitext(file_name)
-                for idx, segment in enumerate(segments):
-                    output_file_path = os.path.join(output_subdir, f"{base_name}_part{idx}{ext}")
-                    sf.write(output_file_path, segment, sr)
-            except Exception as e:
-                print(f"Error processing file {file_path}: {e}")
+    # Lista dei file da escludere
+    exclude_files = ['.DS_Store', 'metadata-Target.csv', 'metadata-NonTarget.csv']
 
-            processed_files += 1
-            progress = (processed_files / total_files) * 100
-            if int(progress) > last_printed_progress:
-                last_printed_progress = int(progress)
-                sys.stdout.write(f"\rProgresso: {progress:.2f}%")
-                sys.stdout.flush()
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = []
+        for root, _, files in os.walk(input_dir):
+            for file_name in files:
+                if not file_name.endswith('.wav') or file_name in exclude_files:
+                    continue
+                file_path = os.path.join(root, file_name)
+                future = executor.submit(process_audio_file, file_path, output_dir, segment_length)
+                future.add_done_callback(progress_callback)
+                futures.append(future)
+
+    # Attendi il completamento di tutte le attività
+    for future in as_completed(futures):
+        future.result()
+
+    sys.stdout.write('\n')
 
 
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
     parent_folder = os.path.dirname(os.path.dirname(current_file))
-    dataset_folder_path = os.path.join(parent_folder, "Dataset")
-    subfolders = ["Target", "Non-Target"]
-
-    new_dataset_folder_path = os.path.join(parent_folder, "NewDataset")
-    os.makedirs(new_dataset_folder_path, exist_ok=True)
+    input_dir = os.path.join(parent_folder, "Dataset")
+    output_dir = os.path.join(parent_folder, "NewDataset")
+    os.makedirs(output_dir, exist_ok=True)
 
     segment_length = 3  # segment length in seconds
 
-    for subfolder in subfolders:
-        input_subfolder_path = os.path.join(dataset_folder_path, subfolder)
-        output_subfolder_path = os.path.join(new_dataset_folder_path, subfolder)
-        process_audio_files(input_subfolder_path, output_subfolder_path, segment_length)
+    # Determina il numero di core disponibili e imposta il numero di thread
+    num_cores = multiprocessing.cpu_count()
+    num_threads = max(1, num_cores // 2)  # Utilizza la metà dei core disponibili
+    logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
+
+    process_audio_files(input_dir, output_dir, segment_length)
 
     sys.stdout.write("\nElaborazione completata.\n")
