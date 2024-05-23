@@ -6,6 +6,7 @@ import sys
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import multiprocessing
+from threading import Lock
 
 # Configura il logging per monitorare lo stato
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,7 +14,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def adjust_audio_length(y, sr, target_length):
     current_length = len(y) / sr  # current length in seconds
-
     if current_length < target_length:
         while len(y) / sr < target_length:
             start = np.random.randint(0, len(y) - 1)
@@ -37,11 +37,10 @@ def segment_audio(y, sr, segment_length):
     return segments
 
 
-def process_audio_file(file_path, output_dir, segment_length):
+def process_audio_file(file_path, output_dir, segment_length, processed_files_counter, lock):
     output_subdir = os.path.join(output_dir, os.path.relpath(os.path.dirname(file_path), input_dir))
     os.makedirs(output_subdir, exist_ok=True)
     base_name, ext = os.path.splitext(os.path.basename(file_path))
-
     try:
         y, sr = librosa.load(file_path, sr=None)
         segments = segment_audio(y, sr, segment_length)
@@ -50,21 +49,22 @@ def process_audio_file(file_path, output_dir, segment_length):
             sf.write(output_file_path, segment, sr)
     except Exception as e:
         logging.error(f"Error processing file {file_path}: {e}")
+    finally:
+        with lock:
+            processed_files_counter[0] += 1
+            progress = (processed_files_counter[0] / total_files) * 100
+            sys.stdout.write(f"\rProgresso: {progress:.2f}%")
+            sys.stdout.flush()
 
 
 def process_audio_files(input_dir, output_dir, segment_length):
-    total_files = sum([len(files) for _, _, files in os.walk(input_dir)])
-    processed_files = 0
-
-    def progress_callback(future):
-        nonlocal processed_files
-        processed_files += 1
-        progress = (processed_files / total_files) * 100
-        sys.stdout.write(f"\rProgresso: {progress:.2f}%")
-        sys.stdout.flush()
-
-    # Lista dei file da escludere
+    global total_files
     exclude_files = ['.DS_Store', 'metadata-Target.csv', 'metadata-NonTarget.csv']
+    total_files = sum(len([f for f in files if f.endswith('.wav') and f not in exclude_files])
+                      for _, _, files in os.walk(input_dir))
+
+    processed_files_counter = [0]
+    lock = Lock()
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = []
@@ -73,8 +73,8 @@ def process_audio_files(input_dir, output_dir, segment_length):
                 if not file_name.endswith('.wav') or file_name in exclude_files:
                     continue
                 file_path = os.path.join(root, file_name)
-                future = executor.submit(process_audio_file, file_path, output_dir, segment_length)
-                future.add_done_callback(progress_callback)
+                future = executor.submit(process_audio_file, file_path, output_dir, segment_length,
+                                         processed_files_counter, lock)
                 futures.append(future)
 
     # Attendi il completamento di tutte le attività
