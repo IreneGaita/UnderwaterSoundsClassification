@@ -2,9 +2,6 @@ import os
 import sys
 from caricamento import conversione_audio
 from SetDurata import process_audio_files as segment_audio
-from Scalogrammi import processing_scalograms as process_scalograms_win
-from Scalogrammi_Mac import process_scalograms as process_scalograms_mac
-
 
 def main():
     # Define dataset paths
@@ -41,8 +38,10 @@ def create_scalograms(dataset_folder, output_base_path):
     subfolder_paths = [os.path.join(dataset_folder, subfolder) for subfolder in subfolders]
 
     if sys.platform == "darwin":
+        from Scalogrammi_Mac import process_scalograms as process_scalograms_mac
         process_scalograms_mac(subfolder_paths, output_base_path)
     else:
+        from Scalogrammi import processing_scalograms as process_scalograms_win
         process_scalograms_win(subfolder_paths, output_base_path)
 
 
