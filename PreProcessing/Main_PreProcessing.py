@@ -41,7 +41,7 @@ def create_scalograms(dataset_folder, output_base_path):
         from Scalogrammi_Mac import process_scalograms as process_scalograms_mac
         process_scalograms_mac(subfolder_paths, output_base_path)
     else:
-        from Scalogrammi import processing_scalograms as process_scalograms_win
+        from Scalogrammi_Win import processing_scalograms as process_scalograms_win
         process_scalograms_win(subfolder_paths, output_base_path)
 
 

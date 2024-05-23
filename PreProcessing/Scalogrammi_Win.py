@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
 import threading
 from queue import Queue
+from tqdm import tqdm  # Importa tqdm per la barra di progresso
 
 # Determina il numero di core disponibili e imposta il numero di thread per NumExpr
 num_cores = multiprocessing.cpu_count()
@@ -87,15 +88,10 @@ def create_scalogram(audio_path, output_path):
         logging.error(f"Errore durante la creazione dello scalogramma per il file {audio_path}: {e}")
         return None
 
-def progress_callback(processed, total):
-    progress = (processed / total) * 100
-    sys.stdout.write(f"\rProgresso: {progress:.2f}%")
-    sys.stdout.flush()
-
 def count_files(directory):
     return sum(1 for root, _, files in os.walk(directory) for file in files if file.endswith('.wav'))
 
-def process_file(queue, output_folder, total_files, processed_files_lock, processed_files_counter):
+def process_file(queue, output_folder, pbar):
     while not queue.empty():
         file_path = queue.get()
         try:
@@ -103,16 +99,11 @@ def process_file(queue, output_folder, total_files, processed_files_lock, proces
             output_subfolder = os.path.join(output_folder, os.path.dirname(relative_path))
             create_scalogram(file_path, output_subfolder)
         finally:
-            with processed_files_lock:
-                processed_files_counter[0] += 1
-                progress_callback(processed_files_counter[0], total_files)
+            pbar.update(1)  # Aggiorna la barra di progresso
             queue.task_done()
 
 def processing_scalograms(subfolder_paths, output_base_path):
     total_files = sum(count_files(subfolder) for subfolder in subfolder_paths)
-    processed_files_counter = [0]
-    processed_files_lock = threading.Lock()
-
     num_threads = max(1, num_cores // 2)  # Utilizza la metà dei core disponibili
     logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
 
@@ -123,17 +114,17 @@ def processing_scalograms(subfolder_paths, output_base_path):
                 dir_path = os.path.join(root, dir_name)
                 for file in os.listdir(dir_path):
                     if file.endswith('.wav'):
-                        file_path = os.path.join(dir_path, file)
-                        file_queue.put(file_path)
+                        file_queue.put(os.path.join(dir_path, file))
 
-    with ThreadPoolExecutor(max_workers=num_threads) as executor:
-        for _ in range(num_threads):
-            executor.submit(process_file, file_queue, output_base_path, total_files, processed_files_lock, processed_files_counter)
+    # Crea la barra di progresso con una formattazione personalizzata
+    with tqdm(total=total_files, desc="Elaborazione degli scalogrammi", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} files processed [{elapsed}<{remaining}, {rate_fmt}{postfix}]') as pbar:
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            for _ in range(num_threads):
+                executor.submit(process_file, file_queue, output_base_path, pbar)
 
-    file_queue.join()
+        file_queue.join()
 
-    logging.info(f"Number of files successfully processed: {processed_files_counter[0]}")
-    logging.info(f"Number of files failed to process: {total_files - processed_files_counter[0]}")
+    logging.info(f"Number of files successfully processed: {total_files}")
 
 if __name__ == "__main__":
     available_gpus = get_available_gpus()
