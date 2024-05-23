@@ -37,7 +37,7 @@ def segment_audio(y, sr, segment_length):
     return segments
 
 
-def process_audio_file(file_path, output_dir, segment_length, processed_files_counter, lock):
+def process_audio_file(file_path, input_dir, output_dir, segment_length, processed_files_counter, lock):
     output_subdir = os.path.join(output_dir, os.path.relpath(os.path.dirname(file_path), input_dir))
     os.makedirs(output_subdir, exist_ok=True)
     base_name, ext = os.path.splitext(os.path.basename(file_path))
@@ -66,6 +66,11 @@ def process_audio_files(input_dir, output_dir, segment_length):
     processed_files_counter = [0]
     lock = Lock()
 
+    # Determina il numero di core disponibili e imposta il numero di thread
+    num_cores = multiprocessing.cpu_count()
+    num_threads = max(1, num_cores // 2)  # Utilizza la metà dei core disponibili
+    logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
+
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = []
         for root, _, files in os.walk(input_dir):
@@ -73,7 +78,7 @@ def process_audio_files(input_dir, output_dir, segment_length):
                 if not file_name.endswith('.wav') or file_name in exclude_files:
                     continue
                 file_path = os.path.join(root, file_name)
-                future = executor.submit(process_audio_file, file_path, output_dir, segment_length,
+                future = executor.submit(process_audio_file, file_path, input_dir, output_dir, segment_length,
                                          processed_files_counter, lock)
                 futures.append(future)
 
@@ -84,7 +89,7 @@ def process_audio_files(input_dir, output_dir, segment_length):
     sys.stdout.write('\n')
 
 
-if __name__ == "__main__":
+def main():
     current_file = os.path.abspath(__file__)
     parent_folder = os.path.dirname(os.path.dirname(current_file))
     input_dir = os.path.join(parent_folder, "Dataset")
@@ -93,11 +98,10 @@ if __name__ == "__main__":
 
     segment_length = 3  # segment length in seconds
 
-    # Determina il numero di core disponibili e imposta il numero di thread
-    num_cores = multiprocessing.cpu_count()
-    num_threads = max(1, num_cores // 2)  # Utilizza la metà dei core disponibili
-    logging.info(f"Numero di core disponibili: {num_cores}, utilizzando {num_threads} thread")
-
     process_audio_files(input_dir, output_dir, segment_length)
 
     sys.stdout.write("\nElaborazione completata.\n")
+
+
+if __name__ == "__main__":
+    main()
