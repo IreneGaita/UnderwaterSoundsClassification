@@ -80,7 +80,7 @@ def process_audio_files(directories):
 
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
-    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "NewDataset")
+    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Dataset")
     subfolders = ["Target", "Non-Target"]
     subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
 
