@@ -37,7 +37,7 @@ def process_file(file_path):
 def count_files(directory, exclude_files):
     return sum(1 for root, _, files in os.walk(directory) for file in files if file not in exclude_files)
 
-def process_audio_files(directories):
+def conversione_audio(directories):
     total_files = sum(count_files(directory, exclude_files) for directory in directories)
     file_count = 0
 
@@ -84,6 +84,6 @@ if __name__ == "__main__":
     subfolders = ["Target", "Non-Target"]
     subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
 
-    process_audio_files(subfolder_paths)
+    conversione_audio(subfolder_paths)
 
     sys.stdout.write("\nElaborazione completata!.\n")

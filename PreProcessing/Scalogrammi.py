@@ -108,7 +108,7 @@ def process_file(queue, output_folder, total_files, processed_files_lock, proces
                 progress_callback(processed_files_counter[0], total_files)
             queue.task_done()
 
-def process_audio_files(subfolder_paths, output_base_path):
+def processing_scalograms(subfolder_paths, output_base_path):
     total_files = sum(count_files(subfolder) for subfolder in subfolder_paths)
     processed_files_counter = [0]
     processed_files_lock = threading.Lock()
@@ -144,7 +144,7 @@ if __name__ == "__main__":
         subfolders = ["Target", "Non-Target"]
         subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
 
-        process_audio_files(subfolder_paths, output_base_path)
+        processing_scalograms(subfolder_paths, output_base_path)
 
         sys.stdout.write("\nElaborazione completata!.\n")
     else:
