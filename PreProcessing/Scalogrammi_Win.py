@@ -1,6 +1,7 @@
 import os
 import sys
-import cupy as cp
+import torch
+import torchaudio
 import numpy as np
 import matplotlib.pyplot as plt
 import pywt
@@ -18,59 +19,57 @@ os.environ['NUMEXPR_MAX_THREADS'] = str(numexpr_max_threads)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def get_available_gpus():
-    try:
-        num_gpus = cp.cuda.runtime.getDeviceCount()
-        logging.info(f"Number of available GPUs: {num_gpus}")
-        for i in range(num_gpus):
-            device_properties = cp.cuda.runtime.getDeviceProperties(i)
-            logging.info(f"GPU {i}: {device_properties['name']}")
-    except Exception as e:
-        logging.error(f"Error getting available GPUs: {e}")
-        num_gpus = 0
-    return num_gpus
+def get_gpu_info():
+    if torch.cuda.is_available():
+        current_device = torch.cuda.current_device()
+        device_name = torch.cuda.get_device_name(current_device)
+        total_memory = torch.cuda.get_device_properties(current_device).total_memory
+        return f"Using GPU: {device_name}, Total Memory: {total_memory} bytes"
+    else:
+        return "No GPU available. Using CPU."
 
-gpu_id = 0
+logging.info(get_gpu_info())
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 plot_lock = threading.Lock()
 
 def create_scalogram(audio_path, output_path, log_file):
     try:
-        with cp.cuda.Device(gpu_id):
-            y, sr = librosa.load(audio_path, sr=None)
-            if len(y) == 0:
-                raise ValueError("Audio file is empty")
+        y, sr = librosa.load(audio_path, sr=None)
+        if len(y) == 0:
+            raise ValueError("Audio file is empty")
 
-            y_gpu = cp.array(y)
+        y_gpu = torch.tensor(y, device=device, dtype=torch.float32)
 
-            scales = np.arange(2, 250)
-            coefficients, _ = pywt.cwt(cp.asnumpy(y_gpu), scales, 'morl', sampling_period=1 / sr)
-            power = cp.array(np.abs(coefficients) ** 2)
+        scales = torch.arange(2, 250, device=device, dtype=torch.float32)
+        coefficients, _ = pywt.cwt(y_gpu.cpu().numpy(), scales.cpu().numpy(), 'morl', sampling_period=1 / sr)
+        power = torch.tensor(np.abs(coefficients) ** 2, device=device)
 
-            if power.shape[0] == 0 or power.shape[1] == 0:
-                raise ValueError("CWT coefficients are empty")
+        if power.shape[0] == 0 or power.shape[1] == 0:
+            raise ValueError("CWT coefficients are empty")
 
-            power_cpu = cp.asnumpy(power)
+        power_cpu = power.cpu().numpy()
 
-            if power_cpu.ndim != 2:
-                raise ValueError("CWT coefficients are not 2D")
+        if power_cpu.ndim != 2:
+            raise ValueError("CWT coefficients are not 2D")
 
-            with plot_lock:
-                plt.figure(figsize=(10, 5))
-                plt.imshow(power_cpu, extent=[0, len(y) / sr, 2, 250], interpolation='bilinear', aspect='auto', cmap='jet')
-                plt.axis('off')
+        with plot_lock:
+            plt.figure(figsize=(10, 5))
+            plt.imshow(power_cpu, extent=[0, len(y) / sr, 2, 250], interpolation='bilinear', aspect='auto', cmap='jet')
+            plt.axis('off')
 
-                os.makedirs(output_path, exist_ok=True)
+            os.makedirs(output_path, exist_ok=True)
 
-                output_file_path = os.path.join(output_path, os.path.basename(audio_path).replace('.wav', '.png'))
-                plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
-                plt.close()
+            output_file_path = os.path.join(output_path, os.path.basename(audio_path).replace('.wav', '.png'))
+            plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
+            plt.close()
 
-                # Update log file
-                with open(log_file, 'a') as f:
-                    f.write(audio_path + '\n')
+            # Update log file
+            with open(log_file, 'a') as f:
+                f.write(audio_path + '\n')
 
-            return output_file_path
+        return output_file_path
     except Exception as e:
         logging.error(f"Error creating scalogram for file {audio_path}: {e}")
         return None
@@ -114,16 +113,12 @@ def processing_scalograms(subfolder_paths, output_base_path):
     logging.info(f"Number of files successfully processed: {total_files}")
 
 if __name__ == "__main__":
-    available_gpus = get_available_gpus()
-    if available_gpus > 0:
-        current_file = os.path.abspath(__file__)
-        dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "NewDataset")
-        output_base_path = os.path.join(os.path.dirname(dataset_folder_path), "Scalograms")
-        subfolders = ["Target", "Non-Target"]
-        subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
+    current_file = os.path.abspath(__file__)
+    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "NewDataset")
+    output_base_path = os.path.join(os.path.dirname(dataset_folder_path), "Scalograms")
+    subfolders = ["Target", "Non-Target"]
+    subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
 
-        processing_scalograms(subfolder_paths, output_base_path)
+    processing_scalograms(subfolder_paths, output_base_path)
 
-        sys.stdout.write("\nProcessing completed!\n")
-    else:
-        logging.error("No GPUs available. Please check your CUDA installation and GPU configuration.")
+    sys.stdout.write("\nProcessing completed!\n")
