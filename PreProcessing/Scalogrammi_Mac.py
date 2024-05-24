@@ -38,15 +38,12 @@ def create_scalogram(audio_path, output_path, log_file):
         with plot_lock:
             plt.figure(figsize=(10, 5))
             plt.imshow(power, extent=[0, len(y) / sr, 2, 250], interpolation='bilinear', aspect='auto', cmap='jet')
-            plt.colorbar(label='Power')
-            plt.ylabel('Scale')
-            plt.xlabel('Time [s]')
-            plt.title('Scalogram')
+            plt.axis('off')
 
             os.makedirs(output_path, exist_ok=True)
 
             output_file_path = os.path.join(output_path, os.path.basename(audio_path).replace('.wav', '.png'))
-            plt.savefig(output_file_path)
+            plt.savefig(output_file_path, bbox_inches='tight', pad_inches=0)
             plt.close()
 
             # Update log file
