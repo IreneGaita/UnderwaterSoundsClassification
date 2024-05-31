@@ -1,134 +1,87 @@
 import os
-import random
-from PIL import Image, ImageOps
-from tqdm import tqdm
+from PIL import Image
+import numpy as np
+import sys
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import multiprocessing
 from queue import Queue
-import sys
-import torch
+from tqdm import tqdm
 
-# Set seed for reproducibility
-SEED = 42
-random.seed(SEED)
-torch.manual_seed(SEED)
-
-# Configure logging
+# Configura il logging per monitorare lo stato
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Function to apply random transformations to images
-def apply_random_transform(image):
-    width, height = image.size
+def image_to_array(image):
+    return np.array(image) / 255.0
 
-    # Horizontal flip with a probability of 50%
-    if random.random() < 0.5:
-        image = ImageOps.mirror(image)
+def normalize_image(image_array, mean, std):
+    return (image_array - mean) / std
 
-    # Time Masking with a probability of 50%
-    if random.random() < 0.5:
-        start_x = random.randint(0, width // 4)
-        end_x = random.randint(start_x, start_x + width // 4)
-        mask_color = (0, 0, 139)  # Dark blue color for masking
-        mask = Image.new('RGB', (end_x - start_x, height), mask_color)
-        image.paste(mask, (start_x, 0))
+def array_to_image(image_array):
+    image_array = np.clip(image_array * 255, 0, 255).astype(np.uint8)
+    return Image.fromarray(image_array)
 
-    # Frequency Masking with a probability of 50%
-    if random.random() < 0.5:
-        start_y = random.randint(0, height // 4)
-        end_y = random.randint(start_y, start_y + height // 4)
-        mask_color = (0, 0, 139)  # Dark blue color for masking
-        mask = Image.new('RGB', (width, end_y - start_y), mask_color)
-        image.paste(mask, (0, start_y))
+def process_image(file_path, output_path):
+    mean = np.array([0, 0, 0])
+    std = np.array([1.5, 1.5, 1.5])
 
-    # Random levels of noise with a probability of 50%
-    if random.random() < 0.5:
-        noise_level = random.uniform(5, 15)  # Noise levels between 5 and 15
-        noise = torch.randn(height, width, 3) * noise_level
-        image_array = torch.from_numpy(np.array(image)).float() + noise
-        image = Image.fromarray(np.uint8(torch.clamp(image_array, 0, 255).numpy()))
+    try:
+        original_image = Image.open(file_path).convert("RGB")
+        image_array = image_to_array(original_image)
+        normalized_array = normalize_image(image_array, mean, std)
+        final_image = array_to_image(normalized_array)
 
-    # Time shifting with a probability of 50%
-    if random.random() < 0.5:
-        shift = random.randint(-width // 4, width // 4)  # Random shift
-        image_array = torch.from_numpy(np.array(image))
-        image_array = torch.roll(image_array, shifts=shift, dims=1)
-        image = Image.fromarray(image_array.numpy())
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        final_image.save(output_path)
 
-    # Crop to original size
-    image = ImageOps.fit(image, (width, height), method=0, bleed=0.0, centering=(0.5, 0.5))
+        return True
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+        return False
 
-    return image
+def count_files(directory):
+    return sum(1 for root, _, files in os.walk(directory) for file in files if file.lower().endswith('.png'))
 
-# Function to process files from the queue
-def process_file(queue, pbar, seed):
+def process_file(queue, output_folder, pbar):
     while not queue.empty():
-        class_folder_path, sample, balanced_class_folder_path, is_augmented, index = queue.get()
-        sample_path = os.path.join(class_folder_path, sample)
-        image = Image.open(sample_path)
+        file_path, relative_path = queue.get()
+        try:
+            output_path = os.path.join(output_folder, relative_path)
+            process_image(file_path, output_path)
+        finally:
+            pbar.update(1)
+            queue.task_done()
 
-        # Set seed for each transformation process for reproducibility
-        random.seed(seed)
-        torch.manual_seed(seed)
+def process_images_in_directory(input_directories, output_directory):
+    total_files = sum(count_files(subfolder) for subfolder in input_directories)
+    num_threads = max(1, multiprocessing.cpu_count() // 2)
 
-        if is_augmented:
-            image = apply_random_transform(image)
-            transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{index}_{sample}")
-        else:
-            transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
-
-        image.save(transformed_sample_path)
-        image.close()
-        pbar.update(1)
-        queue.task_done()
-
-def processing_scalograms(subfolder_paths, output_base_path, seed):
-    total_operations = 0
     file_queue = Queue()
+    for input_directory in input_directories:
+        for root, _, files in os.walk(input_directory):
+            for file_name in files:
+                if file_name.lower().endswith('.png'):
+                    file_path = os.path.join(root, file_name)
+                    relative_path = os.path.relpath(file_path, input_directory)
+                    file_queue.put((file_path, relative_path))
 
-    for subfolder_path in subfolder_paths:
-        for root, _, files in os.walk(subfolder_path):
-            original_samples = [file for file in files if file.endswith(".png")]
-            num_samples = len(original_samples)
-            max_samples = 10934  # Modify this number as needed
-
-            # Create the corresponding balanced folder path
-            relative_root = os.path.relpath(root, subfolder_path)
-            balanced_class_folder_path = os.path.join(output_base_path, relative_root)
-            os.makedirs(balanced_class_folder_path, exist_ok=True)
-
-            # Add original samples to the queue
-            for sample in original_samples:
-                file_queue.put((root, sample, balanced_class_folder_path, False, None))
-
-            # If the number of samples is less than the maximum, perform oversampling
-            if num_samples > 0 and num_samples < max_samples:
-                num_additional_samples = max_samples - num_samples
-
-                for i in range(num_additional_samples):
-                    sample = random.choice(original_samples)
-                    file_queue.put((root, sample, balanced_class_folder_path, True, i))
-
-            total_operations += max_samples if num_samples < max_samples else num_samples
-
-    # Execute processing using threading and progress bar
-    num_threads = max(1, os.cpu_count())
-
-    with tqdm(total=total_operations, desc="Processing all classes") as pbar:
+    with tqdm(total=total_files, desc="Processing images", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} files processed [{elapsed}<{remaining}, {rate_fmt}{postfix}]') as pbar:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             for _ in range(num_threads):
-                executor.submit(process_file, file_queue, pbar, seed)
+                executor.submit(process_file, file_queue, output_directory, pbar)
 
         file_queue.join()
 
-    logging.info("Processing completed!")
+    logging.info(f"Number of files successfully processed: {total_files}")
 
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
-    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Normalizzazione")
-    output_base_path = os.path.join(os.path.dirname(dataset_folder_path), "Bilanciamento_Scalogrammi")
+    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Allenamento")
+    output_directory = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Normalizzazione")
     subfolders = ["Target", "Non-Target"]
     subfolder_paths = [os.path.join(dataset_folder_path, subfolder) for subfolder in subfolders]
 
-    processing_scalograms(subfolder_paths, output_base_path, SEED)
+    os.makedirs(output_directory, exist_ok=True)
+    process_images_in_directory(subfolder_paths, output_directory)
 
     sys.stdout.write("\nProcessing completed!\n")
