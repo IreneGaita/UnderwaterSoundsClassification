@@ -4,7 +4,6 @@ import torch
 from PIL import Image, ImageOps
 from tqdm import tqdm
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from queue import PriorityQueue
 import numpy as np
 import sys
@@ -72,27 +71,31 @@ def apply_random_transform(image, unique_id):
 def process_file(queue, pbar):
     while not queue.empty():
         _, (class_folder_path, sample, balanced_class_folder_path, is_augmented, index) = queue.get()
-        sample_path = os.path.join(class_folder_path, sample)
-        image = Image.open(sample_path)
+        try:
+            sample_path = os.path.join(class_folder_path, sample)
+            image = Image.open(sample_path)
 
-        if is_augmented:
-            image = apply_random_transform(image, index)
-            transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{sample}")
-        else:
-            transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
+            if is_augmented:
+                image = apply_random_transform(image, index)
+                transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{sample}")
+            else:
+                transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
 
-        image.save(transformed_sample_path)
-        image.close()
-        pbar.update(1)
-        queue.task_done()
+            image.save(transformed_sample_path)
+            image.close()
+            pbar.update(1)
+            queue.task_done()
+        except Exception as e:
+            logging.error(f"Error processing file {sample_path}: {e}")
+            queue.task_done()
 
 def processing_scalograms(subfolder_paths, output_base_path, seed):
     total_operations = 0
     file_queue = PriorityQueue()  # Utilizza una coda prioritaria anziché FIFO
 
-    for subfolder_path in subfolder_paths:
-        for root, _, files in os.walk(subfolder_path):
-            original_samples = [file for file in files if file.endswith(".png")]
+    for subfolder_path in sorted(subfolder_paths):
+        for root, dirs, files in sorted(os.walk(subfolder_path), key=lambda x: x[0]):
+            original_samples = sorted([file for file in files if file.endswith(".png")])
             num_samples = len(original_samples)
             max_samples = 10934  # Modifica questo numero in base alle tue necessità
 
@@ -118,15 +121,10 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
 
             total_operations += max_samples if num_samples < max_samples else num_samples
 
-    # Esecuzione del processing usando threading e la barra di progresso
-    num_threads = max(1, os.cpu_count() // 2)
+    logging.info(f"Starting processing with {total_operations} total operations")
 
     with tqdm(total=total_operations, desc="Processing all classes") as pbar:
-        with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            for _ in range(num_threads):
-                executor.submit(process_file, file_queue, pbar)
-
-        file_queue.join()
+        process_file(file_queue, pbar)
 
     logging.info("Processing completed!")
 
@@ -140,3 +138,4 @@ if __name__ == "__main__":
     processing_scalograms(subfolder_paths, output_base_path, SEED)
 
     sys.stdout.write("\nProcessing completed!\n")
+
