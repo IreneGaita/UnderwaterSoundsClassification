@@ -20,11 +20,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Contatore globale per tenere traccia dell'ordine di scoperta dei file
 global_counter = itertools.count()
 
+
 # Funzione per applicare trasformazioni casuali alle immagini
-def apply_random_transform(image, unique_id):
-    # Imposta un seed unico per ogni immagine basato su unique_id
-    random.seed(SEED + unique_id)
-    torch.manual_seed(SEED + unique_id)
+def apply_random_transform(image, unique_seed):
+    # Imposta un seed unico per ogni immagine basato su unique_seed
+    random.seed(unique_seed)
+    torch.manual_seed(unique_seed)
 
     width, height = image.size
 
@@ -67,16 +68,17 @@ def apply_random_transform(image, unique_id):
 
     return image
 
+
 # Funzione per processare i file dalla coda
 def process_file(queue, pbar):
     while not queue.empty():
-        _, (class_folder_path, sample, balanced_class_folder_path, is_augmented, index) = queue.get()
+        _, (class_folder_path, sample, balanced_class_folder_path, is_augmented, unique_seed) = queue.get()
         try:
             sample_path = os.path.join(class_folder_path, sample)
             image = Image.open(sample_path)
 
             if is_augmented:
-                image = apply_random_transform(image, index)
+                image = apply_random_transform(image, unique_seed)
                 transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{sample}")
             else:
                 transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
@@ -88,6 +90,7 @@ def process_file(queue, pbar):
         except Exception as e:
             logging.error(f"Error processing file {sample_path}: {e}")
             queue.task_done()
+
 
 def processing_scalograms(subfolder_paths, output_base_path, seed):
     total_operations = 0
@@ -104,6 +107,9 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
             balanced_class_folder_path = os.path.join(output_base_path, relative_root)
             os.makedirs(balanced_class_folder_path, exist_ok=True)
 
+            # Contatore locale per la cartella corrente
+            local_counter = itertools.count()
+
             # Aggiungere campioni originali alla coda con priorità basata sull'ordine di scoperta
             for sample in original_samples:
                 priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
@@ -117,7 +123,8 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
                     sample_index = i % num_samples  # Usa un indice sequenziale
                     sample = original_samples[sample_index]
                     priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
-                    file_queue.put((priority, (root, sample, balanced_class_folder_path, True, i)))
+                    unique_seed = seed + next(local_counter)  # Seed basato su SEED + contatore locale
+                    file_queue.put((priority, (root, sample, balanced_class_folder_path, True, unique_seed)))
 
             total_operations += max_samples if num_samples < max_samples else num_samples
 
@@ -127,6 +134,7 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
         process_file(file_queue, pbar)
 
     logging.info("Processing completed!")
+
 
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
@@ -138,4 +146,3 @@ if __name__ == "__main__":
     processing_scalograms(subfolder_paths, output_base_path, SEED)
 
     sys.stdout.write("\nProcessing completed!\n")
-
