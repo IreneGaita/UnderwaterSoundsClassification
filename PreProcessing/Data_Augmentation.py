@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Contatore globale per tenere traccia dell'ordine di scoperta dei file
 global_counter = itertools.count()
 
+
 # Funzione per applicare trasformazioni casuali alle immagini
 def apply_random_transform(image, unique_seed):
     # Imposta un seed unico per ogni immagine basato su unique_seed
@@ -67,6 +68,7 @@ def apply_random_transform(image, unique_seed):
 
     return image
 
+
 # Funzione per processare i file dalla coda
 def process_file(queue, pbar):
     while not queue.empty():
@@ -88,6 +90,7 @@ def process_file(queue, pbar):
         except Exception as e:
             logging.error(f"Error processing file {sample_path}: {e}")
             queue.task_done()
+
 
 def processing_scalograms(subfolder_paths, output_base_path, seed):
     total_operations = 0
@@ -131,6 +134,7 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
         process_file(file_queue, pbar)
 
     logging.info("Processing completed!")
+
 
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
