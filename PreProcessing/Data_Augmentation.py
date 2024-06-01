@@ -1,23 +1,32 @@
 import os
 import random
-import numpy as np
+import torch
 from PIL import Image, ImageOps
 from tqdm import tqdm
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
+from queue import PriorityQueue
+import numpy as np
 import sys
+import itertools
 
 # Imposta il seed per la riproducibilità
 SEED = 42
 random.seed(SEED)
-np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 # Configurazione del logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Contatore globale per tenere traccia dell'ordine di scoperta dei file
+global_counter = itertools.count()
+
 # Funzione per applicare trasformazioni casuali alle immagini
-def apply_random_transform(image):
+def apply_random_transform(image, unique_id):
+    # Imposta un seed unico per ogni immagine basato su unique_id
+    random.seed(SEED + unique_id)
+    torch.manual_seed(SEED + unique_id)
+
     width, height = image.size
 
     # Flip orizzontale con probabilità del 50%
@@ -43,16 +52,16 @@ def apply_random_transform(image):
     # Livelli randomici di rumore con probabilità del 50%
     if random.random() < 0.5:
         noise_level = random.uniform(5, 15)  # Livelli di rumore tra 5 e 15
-        noise = np.random.normal(0, noise_level, (height, width, 3))
-        image_array = np.array(image) + noise
-        image = Image.fromarray(np.uint8(np.clip(image_array, 0, 255)))
+        noise = torch.normal(0, noise_level, size=(height, width, 3))
+        image_array = torch.tensor(np.array(image)) + noise
+        image = Image.fromarray(np.uint8(torch.clamp(image_array, 0, 255).numpy()))
 
     # Time shifting con probabilità del 50%
     if random.random() < 0.5:
         shift = random.randint(-width // 4, width // 4)  # Shift casuale
-        image_array = np.array(image)
-        image_array = np.roll(image_array, shift, axis=1)
-        image = Image.fromarray(image_array)
+        image_array = torch.tensor(np.array(image))
+        image_array = torch.roll(image_array, shifts=shift, dims=1)
+        image = Image.fromarray(image_array.numpy())
 
     # Ritaglio per riportare l'immagine alla dimensione originale
     image = ImageOps.fit(image, (width, height), method=0, bleed=0.0, centering=(0.5, 0.5))
@@ -60,19 +69,15 @@ def apply_random_transform(image):
     return image
 
 # Funzione per processare i file dalla coda
-def process_file(queue, pbar, seed):
+def process_file(queue, pbar):
     while not queue.empty():
-        class_folder_path, sample, balanced_class_folder_path, is_augmented, index = queue.get()
+        _, (class_folder_path, sample, balanced_class_folder_path, is_augmented, index) = queue.get()
         sample_path = os.path.join(class_folder_path, sample)
         image = Image.open(sample_path)
 
-        # Imposta il seed per ogni processo di trasformazione per garantire riproducibilità
-        random.seed(seed)
-        np.random.seed(seed)
-
         if is_augmented:
-            image = apply_random_transform(image)
-            transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{index}_{sample}")
+            image = apply_random_transform(image, index)
+            transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{sample}")
         else:
             transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
 
@@ -83,7 +88,7 @@ def process_file(queue, pbar, seed):
 
 def processing_scalograms(subfolder_paths, output_base_path, seed):
     total_operations = 0
-    file_queue = Queue()
+    file_queue = PriorityQueue()  # Utilizza una coda prioritaria anziché FIFO
 
     for subfolder_path in subfolder_paths:
         for root, _, files in os.walk(subfolder_path):
@@ -96,17 +101,20 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
             balanced_class_folder_path = os.path.join(output_base_path, relative_root)
             os.makedirs(balanced_class_folder_path, exist_ok=True)
 
-            # Aggiungere campioni originali alla coda
+            # Aggiungere campioni originali alla coda con priorità basata sull'ordine di scoperta
             for sample in original_samples:
-                file_queue.put((root, sample, balanced_class_folder_path, False, None))
+                priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
+                file_queue.put((priority, (root, sample, balanced_class_folder_path, False, None)))
 
             # Se il numero di campioni è inferiore al massimo, esegui il sovracampionamento
             if num_samples > 0 and num_samples < max_samples:
                 num_additional_samples = max_samples - num_samples
 
                 for i in range(num_additional_samples):
-                    sample = random.choice(original_samples)
-                    file_queue.put((root, sample, balanced_class_folder_path, True, i))
+                    sample_index = i % num_samples  # Usa un indice sequenziale
+                    sample = original_samples[sample_index]
+                    priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
+                    file_queue.put((priority, (root, sample, balanced_class_folder_path, True, i)))
 
             total_operations += max_samples if num_samples < max_samples else num_samples
 
@@ -116,7 +124,7 @@ def processing_scalograms(subfolder_paths, output_base_path, seed):
     with tqdm(total=total_operations, desc="Processing all classes") as pbar:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             for _ in range(num_threads):
-                executor.submit(process_file, file_queue, pbar, seed)
+                executor.submit(process_file, file_queue, pbar)
 
         file_queue.join()
 
