@@ -8,9 +8,10 @@ from queue import PriorityQueue
 import numpy as np
 import sys
 import itertools
+import uuid
 
 # Imposta il seed per la riproducibilità
-SEED = 42
+SEED = 10
 random.seed(SEED)
 torch.manual_seed(SEED)
 
@@ -69,7 +70,6 @@ def apply_random_transform(image, unique_seed):
     return image
 
 
-# Funzione per processare i file dalla coda
 def process_file(queue, pbar):
     while not queue.empty():
         _, (class_folder_path, sample, balanced_class_folder_path, is_augmented, unique_seed) = queue.get()
@@ -78,8 +78,11 @@ def process_file(queue, pbar):
             image = Image.open(sample_path)
 
             if is_augmented:
+                unique_id = str(uuid.uuid4())  # Genera un identificatore univoco
                 image = apply_random_transform(image, unique_seed)
-                transformed_sample_path = os.path.join(balanced_class_folder_path, f"aug_{sample}")
+                sample_name, extension = os.path.splitext(sample)
+                transformed_sample_path = os.path.join(balanced_class_folder_path,
+                                                       f"aug_{unique_seed}_{sample_name}{extension}")
             else:
                 transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
 
@@ -90,6 +93,7 @@ def process_file(queue, pbar):
         except Exception as e:
             logging.error(f"Error processing file {sample_path}: {e}")
             queue.task_done()
+
 
 
 def processing_scalograms(subfolder_paths, output_base_path, seed):
