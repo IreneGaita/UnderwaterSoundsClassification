@@ -98,8 +98,8 @@ if __name__ == '__main__':
         transforms.ToTensor(),
     ])
 
-    train_dataset_path = r'/Users/massimo/PycharmProjects/UnderwaterSoundsClassification/Classificazione_Multiclasse/Training_Balanced_Target'
-    val_dataset_path = r'/Users/massimo/PycharmProjects/UnderwaterSoundsClassification/Classificazione_Multiclasse/Evaluation_Balanced_Target'
+    train_dataset_path = r'C:\Users\biagi\PycharmProjects\gruppo17\Bilanciamento_Allenamento'
+    val_dataset_path = r'C:\Users\biagi\PycharmProjects\gruppo17\Validazione_Norm'
 
     train_dataset = CustomDataset(train_dataset_path, transform=transform)
     val_dataset = CustomDataset(val_dataset_path, transform=transform)
