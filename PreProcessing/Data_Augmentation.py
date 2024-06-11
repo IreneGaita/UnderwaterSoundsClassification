@@ -11,7 +11,7 @@ import itertools
 import uuid
 
 # Imposta il seed per la riproducibilità
-SEED = 10
+SEED = 1017
 random.seed(SEED)
 torch.manual_seed(SEED)
 
@@ -82,7 +82,7 @@ def process_file(queue, pbar):
                 image = apply_random_transform(image, unique_seed)
                 sample_name, extension = os.path.splitext(sample)
                 transformed_sample_path = os.path.join(balanced_class_folder_path,
-                                                       f"aug_{unique_seed}_{sample_name}{extension}")
+                                                       f"aug2_{unique_id}_{sample_name}{extension}")
             else:
                 transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
 
@@ -98,39 +98,44 @@ def process_file(queue, pbar):
 
 def processing_scalograms(input_base_path, output_base_path, max_samples_per_leaf, seed):
     total_operations = 0
-    file_queue = PriorityQueue()  # Utilizza una coda prioritaria anziché FIFO
+    file_queue = PriorityQueue()  # Utilizes a priority queue instead of FIFO
+
+    global_counter = itertools.count()
 
     for root, dirs, files in sorted(os.walk(input_base_path)):
-        original_samples = sorted([file for file in files if file.endswith(".png")])
-        num_samples = len(original_samples)
-        if num_samples == 0:
+        total_file = sorted([file for file in files if file.endswith(".png")])
+        original_samples = sorted([file for file in files if file.endswith(".png") and not file.startswith("aug")])
+        num_total_file = len(total_file)
+        num_original_samples = len(original_samples)
+        if num_total_file == 0:
             continue
 
-        # Creare il percorso della cartella bilanciata corrispondente
+        # Create the corresponding balanced folder path
         relative_root = os.path.relpath(root, input_base_path)
         balanced_class_folder_path = os.path.join(output_base_path, relative_root)
         os.makedirs(balanced_class_folder_path, exist_ok=True)
 
-        # Contatore locale per la cartella corrente
+        # Local counter for the current folder
         local_counter = itertools.count()
 
-        # Aggiungere campioni originali alla coda con priorità basata sull'ordine di scoperta
-        for sample in original_samples:
-            priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
+        # Add original samples to the queue with priority based on discovery order
+        for sample in total_file:
+            priority = next(global_counter)  # Priority based on discovery order
             file_queue.put((priority, (root, sample, balanced_class_folder_path, False, None)))
 
-        # Se il numero di campioni è inferiore al massimo, esegui il sovracampionamento
-        if num_samples < max_samples_per_leaf:
-            num_additional_samples = max_samples_per_leaf - num_samples
+        # If the number of samples is less than the maximum, perform oversampling
+        if num_total_file < max_samples_per_leaf:
+            num_additional_samples = max_samples_per_leaf - num_total_file
 
             for i in range(num_additional_samples):
-                sample_index = i % num_samples  # Usa un indice sequenziale
+                sample_index = i % num_original_samples  # Use a sequential index
                 sample = original_samples[sample_index]
-                priority = next(global_counter)  # Priorità basata sull'ordine di scoperta
-                unique_seed = seed + next(local_counter)  # Seed basato su SEED + contatore locale
+                priority = next(global_counter)  # Priority based on discovery order
+                unique_seed = seed + next(local_counter)  # Seed based on SEED + local counter
+
                 file_queue.put((priority, (root, sample, balanced_class_folder_path, True, unique_seed)))
 
-        total_operations += max_samples_per_leaf if num_samples < max_samples_per_leaf else num_samples
+        total_operations += max_samples_per_leaf if num_total_file < max_samples_per_leaf else num_total_file
 
     logging.info(f"Starting processing with {total_operations} total operations")
 
@@ -140,12 +145,11 @@ def processing_scalograms(input_base_path, output_base_path, max_samples_per_lea
     logging.info("Processing completed!")
 
 
-
 if __name__ == "__main__":
     current_file = os.path.abspath(__file__)
-    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Allenamento_Norm")
-    output_base_path = os.path.join(os.path.dirname(dataset_folder_path), "Bilanciamento_Scalogrammi")
-    max_samples_per_leaf = 10934  # Imposta il numero massimo di campioni per foglia
+    dataset_folder_path = os.path.join(os.path.dirname(os.path.dirname(current_file)), "Allenamento_Norm/Non-Target_Bilanciato1")
+    output_base_path = os.path.join(os.path.dirname(dataset_folder_path), "Non-Target_Bilanciato2")
+    max_samples_per_leaf = 57945  # Imposta il numero massimo di campioni per foglia
     input_base_path = dataset_folder_path
 
     processing_scalograms(input_base_path, output_base_path, max_samples_per_leaf, SEED)
