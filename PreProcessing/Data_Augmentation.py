@@ -82,7 +82,7 @@ def process_file(queue, pbar):
                 image = apply_random_transform(image, unique_seed)
                 sample_name, extension = os.path.splitext(sample)
                 transformed_sample_path = os.path.join(balanced_class_folder_path,
-                                                       f"aug2_{unique_id}_{sample_name}{extension}")
+                                                       f"aug_{unique_id}_{sample_name}{extension}")
             else:
                 transformed_sample_path = os.path.join(balanced_class_folder_path, sample)
 
