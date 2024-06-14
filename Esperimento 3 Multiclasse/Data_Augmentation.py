@@ -1,3 +1,6 @@
+
+# Data Augmentation modificato eliminando le maschere di frequenza e temporali
+
 import os
 import random
 import torch
