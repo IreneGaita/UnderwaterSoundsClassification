@@ -1,6 +1,6 @@
 import os
 from torch.utils.data import Dataset
-from PIL import Image
+from PIL import Image, ImageOps
 
 class CustomDataset(Dataset):
     def __init__(self, root_dir, transform=None):
