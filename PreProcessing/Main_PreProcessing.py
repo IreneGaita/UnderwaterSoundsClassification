@@ -1,6 +1,6 @@
 import os
 import sys
-from caricamento import conversione_audio
+from Conversioni import conversione_audio
 from SetDurata import process_audio_files as segment_audio
 
 def main():
